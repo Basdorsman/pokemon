@@ -1,24 +1,28 @@
-from itertools import combinations
 from pokemon_effectiveness import pokemon
-import matplotlib.pyplot as plt
 
 pkmn=pokemon()
 typeNames = pkmn.typeNames
 
-def getPartner(myType):
+def getPartner(myType1, myType2=None):
     allPkmnTypes = pkmn.getAllPkmnTypes()
     
     effDict = {}
     effDictTwoPkmnCombined={}
     for pkmnType in allPkmnTypes:
-        typings = [myType, pkmnType]
+        if myType2 == None:
+            typings = [myType1, pkmnType]
+        else:
+            typings = [myType1, myType2, pkmnType]
         for typing in typings:
             effDict=pkmn.getEffDictByTypeAny(typing, effDict=effDict)
     
         typeNameList = pkmn.getTypeNameList(typings)
-        typeNameString = ' '.join(typeNameList)
+        typeNameString = str(typeNameList)
         effDictTwoPkmnCombined[typeNameString]={}
-        effDictTwoPkmnCombined[typeNameString]['myType']= pkmn.getEffDictByTypeAny(myType)
+        effDictTwoPkmnCombined[typeNameString]['myType1']= pkmn.getEffDictByTypeAny(myType1)
+        if not myType2 == None:
+            effDictTwoPkmnCombined[typeNameString]['myType2']= pkmn.getEffDictByTypeAny(myType2)
+            effDictTwoPkmnCombined[typeNameString]['myTypes'] = pkmn.combineEffByType([myType1, myType2], effDictByType=effDict)
         effDictTwoPkmnCombined[typeNameString]['otherType']= pkmn.getEffDictByTypeAny(pkmnType)
         effDictTwoPkmnCombined[typeNameString]['effectiveness'] = pkmn.combineEffByType(typings, effDictByType=effDict)
         effDictTwoPkmnCombined[typeNameString]['effScore'] = pkmn.getEffScore(effDictTwoPkmnCombined[typeNameString]['effectiveness'])
@@ -26,8 +30,10 @@ def getPartner(myType):
     effDictTwoPkmnCombined=sorted(effDictTwoPkmnCombined.items(),key=lambda k_v: k_v[1]['effScore'])
     return effDictTwoPkmnCombined
 
-myType = ('ghost','ice')
-matchups = getPartner(myType)
+myType1 = ('ground','water')
+myType2 = ('steel', 'flying')
+matchups = getPartner(myType1, myType2)
+
 
 # to do: find two complementary pokemon (defensive or offensive)
 # to do: improve offensive calc to include other effectivities

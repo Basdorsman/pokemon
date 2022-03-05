@@ -10,6 +10,8 @@ class pokemon():
         self.weaknessDict = {typeName : [item.name for item in pkmnType.damage_relations.double_damage_from] for typeName, pkmnType in zip(self.typeNames, self.types)}
         self.immuneDict = {typeName : [item.name for item in pkmnType.damage_relations.no_damage_from] for typeName, pkmnType in zip(self.typeNames, self.types)}
         self.superEffectiveDict = {typeName : [item.name for item in pkmnType.damage_relations.double_damage_to] for typeName, pkmnType in zip(self.typeNames, self.types)}
+        self.notVeryEffectiveDict = {typeName : [item.name for item in pkmnType.damage_relations.half_damage_to] for typeName, pkmnType in zip(self.typeNames, self.types)}
+        self.noEffectDict = {typeName : [item.name for item in pkmnType.damage_relations.no_damage_to] for typeName, pkmnType in zip(self.typeNames, self.types)}
         
     def getDefenseEff(self, myTypeName, effDict=None):
         if effDict == None:
@@ -60,20 +62,51 @@ class pokemon():
             else:
                 effDictByType[typeName] = '1'
         return effDictByType
-        
-    def getEffDictByType(self):
-        effDictByType = {}
-        for typeName in self.typeNames:
-            effDictByType[typeName]=self.getDefenseEffByType(typeName)
-        return(effDictByType)
     
-    def combineEffByType(self, types, effDictByType=None):
+    def getOffenseEffByType(self, myTypeName):
+        effDictByType={}
+        for typeName in self.typeNames:
+            if typeName in self.noEffectDict[myTypeName]:
+                effDictByType[typeName] = '0'
+            elif typeName in self.notVeryEffectiveDict[myTypeName]:
+                effDictByType[typeName] = '0.5'
+            elif typeName in self.superEffectiveDict[myTypeName]:
+                effDictByType[typeName] = '2'
+            else:
+                effDictByType[typeName] = '1'
+        return effDictByType
+    
+    def getEffByType(self, myTypeName, off_or_def):
+        if off_or_def == 'def':
+            effDictByType = self.getDefenseEffByType(myTypeName)
+        elif off_or_def == 'off':
+            effDictByType = self.getOffenseEffByType(myTypeName)
+        return effDictByType
+
+    def getEffDictByTypeAny(self, types, off_or_def, effDict=None):
+        if effDict == None:
+            effDict = {}
+        if isinstance(types, str):
+            try:
+                effDict[types]
+            except KeyError:
+                effDict[types]=self.getEffByType(types, off_or_def) 
+        elif isinstance(types, tuple):
+            typeString = ' '.join(list(types))
+            try: 
+                effDict[typeString]
+            except KeyError:
+                effDict[typeString]=self.combineEffByType(types, off_or_def, effDict=effDict)
+        return effDict
+    
+    def combineEffByType(self, myTypes, off_or_def, effDict=None):
         '''Combine effectiveness of two types. 
         
         By cycling through all types and multiplying the effectiveness of 
         either, it finds the combined effectiveness for a dual type. Producing
         the dictionary containing all the effectiveness takes time, so passing
-        a prepared effectiveness dictionary can speed up the process.
+        a prepared effectiveness dictionary can speed up the process if calling
+        this function many times.
         
         Parameters
         ----------
@@ -85,50 +118,36 @@ class pokemon():
         effDictByTypeDual : effectiveness of dual typing.
         
         '''
+        if effDict==None:
+            effDict={}
+            for myType in myTypes:
+                effDict=self.getEffDictByTypeAny(myType, off_or_def, effDict=effDict)
         
-        if effDictByType==None:
-            effDictByType={}
-            for typing in types:
-                effDictByType=self.getEffDictByTypeAny(typing, effDictByType)
-        
-        typeNameList = self.getTypeNameList(types)
+        myTypeNameList = self.getTypeNameList(myTypes)
 
         effDictByTypeDual={}
         for typeName in self.typeNames:
-            effDictByTypeDual[typeName]=float(effDictByType[typeNameList[0]][typeName])*float(effDictByType[typeNameList[1]][typeName])
+            multiplier = 1
+            for myTypeName in myTypeNameList:
+                multiplier *= float(effDict[myTypeName][typeName])
+            effDictByTypeDual[typeName]=multiplier
         return effDictByTypeDual
-    
-    def getEffDictByTypeAny(self, types, effDict=None):
-        if effDict == None:
-            effDict = {}
-        if isinstance(types, str):
-            try:
-                effDict[types]
-            except KeyError:
-                effDict[types]=self.getDefenseEffByType(types) 
-        elif isinstance(types, tuple):
-            typeString = ' '.join(list(types))
-            try: 
-                effDict[typeString]
-            except KeyError:
-                effDict[typeString]=self.combineEffByType(types)
-        return effDict
 
-    def getMultiOffenseEff(self, typeNames, combineN):
+    def getMultiOffenseEff(self, myTypes, candidateTypes, room=1):
         multiTypeLengths=[]
         multiTypeDicts={}
-        for multiTypes in list(combinations(typeNames, combineN)):
+        for candidateCombination in list(combinations(candidateTypes, room)):
             allTypeCombination=[]
-            for typeName in multiTypes:
+            for typeName in myTypes+candidateCombination:
                 for item in self.superEffectiveDict[typeName]:
                     allTypeCombination.append(item)
             multiTypeCombination = list(dict.fromkeys(allTypeCombination))
             multiTypeCombination.sort()
             multiTypeLength = len(multiTypeCombination)
             multiTypeLengths.append(multiTypeLength)
-            multiTypeDicts[" ".join(multiTypes)]={'types' : multiTypeCombination, 'length' : multiTypeLength}
+            multiTypeDicts[" ".join(myTypes+candidateCombination)]={'types' : multiTypeCombination, 'length' : multiTypeLength}
         return multiTypeDicts, multiTypeLengths
-    
+
     def getEffScore(self,effDict):
         effScore = 0
         for typeName in self.typeNames:
@@ -153,5 +172,7 @@ class pokemon():
 
 if __name__ == '__main__':
     pkmn = pokemon()
-    combined = pkmn.combineEffByType(('ice','dark'))
+    myTypes = ('water','ice')
+    candidateTypes = ('steel','fairy','electric')
+    multiTypeDicts, multiTypeLenghts = pkmn.getMultiOffenseEff(myTypes, candidateTypes, room=1)
     
