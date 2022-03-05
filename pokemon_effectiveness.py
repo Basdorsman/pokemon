@@ -1,8 +1,6 @@
 # https://pokeapi.co/docs/v2#pokemon-section
 import pokebase as pb
-import matplotlib.pyplot as plt
 from itertools import combinations
-import math
 
 class pokemon():
     def __init__(self):
@@ -26,8 +24,8 @@ class pokemon():
             else:
                 effDict['1'].append(type2test)
         return effDict
-
-    def getDefenseEffDual(self, myTypeNames, effDict=None):
+    
+    def combineEff(self, myTypeNames, effDict=None):
         if effDict == None:
             effDict = {'0':[],'0.5':[],'1':[],'2':[]}
         for myTypeName in myTypeNames:
@@ -49,6 +47,72 @@ class pokemon():
             else:
                 effDictDual['1'].append(typeName)
         return effDictDual
+    
+    def getDefenseEffByType(self, myTypeName):
+        effDictByType={}
+        for typeName in self.typeNames:
+            if typeName in self.immuneDict[myTypeName]:
+                effDictByType[typeName] = '0'
+            elif typeName in self.resistanceDict[myTypeName]:
+                effDictByType[typeName] = '0.5'
+            elif typeName in self.weaknessDict[myTypeName]:
+                effDictByType[typeName] = '2'
+            else:
+                effDictByType[typeName] = '1'
+        return effDictByType
+        
+    def getEffDictByType(self):
+        effDictByType = {}
+        for typeName in self.typeNames:
+            effDictByType[typeName]=self.getDefenseEffByType(typeName)
+        return(effDictByType)
+    
+    def combineEffByType(self, types, effDictByType=None):
+        '''Combine effectiveness of two types. 
+        
+        By cycling through all types and multiplying the effectiveness of 
+        either, it finds the combined effectiveness for a dual type. Producing
+        the dictionary containing all the effectiveness takes time, so passing
+        a prepared effectiveness dictionary can speed up the process.
+        
+        Parameters
+        ----------
+        typeNameDual (iterable) : Contains two strings of two types.
+        effDictByType : Prepared dictionary of all type effectivenesses.
+        
+        Returns
+        -------
+        effDictByTypeDual : effectiveness of dual typing.
+        
+        '''
+        
+        if effDictByType==None:
+            effDictByType={}
+            for typing in types:
+                effDictByType=self.getEffDictByTypeAny(typing, effDictByType)
+        
+        typeNameList = self.getTypeNameList(types)
+
+        effDictByTypeDual={}
+        for typeName in self.typeNames:
+            effDictByTypeDual[typeName]=float(effDictByType[typeNameList[0]][typeName])*float(effDictByType[typeNameList[1]][typeName])
+        return effDictByTypeDual
+    
+    def getEffDictByTypeAny(self, types, effDict=None):
+        if effDict == None:
+            effDict = {}
+        if isinstance(types, str):
+            try:
+                effDict[types]
+            except KeyError:
+                effDict[types]=self.getDefenseEffByType(types) 
+        elif isinstance(types, tuple):
+            typeString = ' '.join(list(types))
+            try: 
+                effDict[typeString]
+            except KeyError:
+                effDict[typeString]=self.combineEffByType(types)
+        return effDict
 
     def getMultiOffenseEff(self, typeNames, combineN):
         multiTypeLengths=[]
@@ -64,60 +128,30 @@ class pokemon():
             multiTypeLengths.append(multiTypeLength)
             multiTypeDicts[" ".join(multiTypes)]={'types' : multiTypeCombination, 'length' : multiTypeLength}
         return multiTypeDicts, multiTypeLengths
+    
+    def getEffScore(self,effDict):
+        effScore = 0
+        for typeName in self.typeNames:
+            effScore += float(effDict[typeName])
+        return effScore
 
+    def getAllPkmnTypes(self):
+        dualTypes = list(combinations(self.typeNames, 2))
+        allPkmnTypes = dualTypes
+        for typeName in self.typeNames:
+            allPkmnTypes.append(typeName)
+        return allPkmnTypes
+    
+    def getTypeNameList(self, types):
+        typeNameList = []
+        for typing in types:
+            if isinstance(typing, str):
+                typeNameList.append(typing)
+            elif isinstance(typing, tuple):
+                typeNameList.append(' '.join(list(typing)))
+        return typeNameList
 
-pkmn=pokemon()
-# Offensive stuff
-# multiTypeDicts, multiTypeLenghts = pkmn.getMultiOffenseEff(pkmn.typeNames, 3)    
-# plt.hist(multiTypeLenghts)
-# multiTypeDicts=sorted(multiTypeDicts.items(),key=lambda k_v: k_v[1]['length'],reverse=True)
-
-typeNames = pkmn.typeNames
-typeNamesFull = []
-for typeName in typeNames:
-    typeNamesFull.append(typeName)
-
-# effDictDual={}
-# for dualType in list(combinations(typeNames, 2)):
-#     effDictDual = pkmn.getDefenseEffDual(dualType)
-
-def getWeights(effect):
-    if effect == '0':
-        weight = 1.5
-    if effect == '0.25':
-        weight = 1
-    elif effect == '0.5':
-        weight = 0.5
-    elif effect == '1':
-        weight = 0
-    elif effect == '2':
-        weight = -0.5
-    elif effect == '4':
-        weight = -1
-    return weight
-
-defenseEffScore={}
-for dualType in list(combinations(typeNames, 2)):
-    defenseEffDual = pkmn.getDefenseEffDual(dualType)
-    dualTypeString=' '.join(list(dualType))
-    defenseEffScore[dualTypeString]=0
-    for multiplier in defenseEffDual:
-        defenseEffScore[dualTypeString]+=float(multiplier)*len(defenseEffDual[multiplier])
-
-for singleType in typeNames:
-    defenseEff = pkmn.getDefenseEff(singleType)
-    defenseEffScore[singleType]=0
-    for multiplier in defenseEff:
-        defenseEffScore[singleType]+=float(multiplier)*len(defenseEff[multiplier])
-
-#defenseEffScore=sorted(defenseEffScore.items(),key=lambda k_v: k_v[1])
-
-defenseEffScoreList = []
-for key in defenseEffScore:
-    defenseEffScoreList.append(defenseEffScore[key])
-
-fig, ax = plt.subplots()
-ax.set_xlabel('score = sum defensive effectiveness for all types')
-ax.set_ylabel('N (dual) typings per score')
-ax.hist(defenseEffScoreList,bins=20)
-
+if __name__ == '__main__':
+    pkmn = pokemon()
+    combined = pkmn.combineEffByType(('ice','dark'))
+    
